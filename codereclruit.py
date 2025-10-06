@@ -121,4 +121,4 @@ if 'quiz_finished' in st.session_state and st.session_state.quiz_finished:
     score, total_questions = calculate_score()
     score_percentage = (score / total_questions) * 100
     
-    st.success("🎉
+    st.success("🎉")
