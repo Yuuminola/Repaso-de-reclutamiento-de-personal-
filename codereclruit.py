@@ -4,20 +4,10 @@ import random
 import time
 
 # ====================================================================
-# 1. DATOS DEL QUIZ (Simulación de datos alojados en GitHub)
-#
-# NOTA IMPORTANTE: Para alojar los datos en GitHub, guardarías esta
-# estructura en un archivo CSV o JSON y luego usarías su URL RAW
-# para cargarla. Ejemplo de cómo cargar un CSV de GitHub:
-# DATA_URL = "URL_RAW_DE_TU_ARCHIVO.csv"
-# df = pd.read_csv(DATA_URL)
+# 1. DATOS DEL QUIZ
 # ====================================================================
 
-# Lista de las 10 preguntas generadas, adaptadas a una estructura de Python.
-# 'question': La pregunta.
-# 'options': Lista de las 4 opciones.
-# 'correct_answer': La opción correcta.
-
+# Lista de las 10 preguntas generadas.
 QUIZ_DATA = [
     {
         "question": "¿Cuál es el documento esencial que se debe generar o actualizar antes de iniciar la búsqueda de candidatos, ya que detalla las funciones, responsabilidades y requisitos de la posición?",
@@ -76,110 +66,59 @@ QUIZ_DATA = [
 # ====================================================================
 
 # Inicializar el estado de la sesión si aún no existe
-if 'current_question_index' not in st.session_state:
-    st.session_state.current_question_index = 0
-    st.session_state.score = 0
-    st.session_state.feedback = ""
-    st.session_state.quiz_finished = False
-    # Mezclamos las preguntas una sola vez al inicio
+if 'answers' not in st.session_state:
+    st.session_state.answers = {} # Almacena las respuestas del usuario
+    st.session_state.current_index = 0
     st.session_state.quiz_data = QUIZ_DATA[:]
     random.shuffle(st.session_state.quiz_data)
 
-def check_answer(user_answer, correct_answer):
-    """Verifica la respuesta del usuario y actualiza el estado."""
-    if st.session_state.quiz_finished:
-        st.session_state.feedback = "El cuestionario ha finalizado. ¡Revisa tu resultado!"
-        return
+def submit_answer(question_id, user_answer):
+    """Guarda la respuesta del usuario, da feedback y avanza."""
+    
+    # 1. Registrar la respuesta y bloquear el cambio
+    if question_id not in st.session_state.answers:
+        st.session_state.answers[question_id] = user_answer
         
-    if user_answer == correct_answer:
-        st.session_state.score += 1
-        st.session_state.feedback = "¡✅ **Respuesta Correcta!** Pasando a la siguiente pregunta."
-        
-        # Avanzar al siguiente índice
-        if st.session_state.current_question_index < len(st.session_state.quiz_data) - 1:
-            st.session_state.current_question_index += 1
+        # 2. Avanzar el índice
+        if st.session_state.current_index < len(st.session_state.quiz_data) - 1:
+            st.session_state.current_index += 1
         else:
+            # 3. Marcar como terminado
             st.session_state.quiz_finished = True
-    else:
-        # Aquí se da una retroalimentación más detallada (según tu preferencia)
-        st.session_state.feedback = f"❌ **Respuesta Incorrecta.** La respuesta correcta era: **{correct_answer}**. Inténtalo de nuevo."
         
-    # La clave 'submitted' se usa para forzar la re-ejecución y mostrar el feedback
-    st.session_state.submitted = True
+        # Forzar la re-ejecución para mostrar el feedback y la siguiente pregunta
+        time.sleep(0.3) 
+        st.rerun()
+
+def calculate_score():
+    """Calcula el puntaje final basado en las respuestas registradas."""
+    score = 0
+    total_questions = len(st.session_state.quiz_data)
+    
+    for idx, data in enumerate(st.session_state.quiz_data):
+        question_id = idx # Usamos el índice como ID simple
+        if question_id in st.session_state.answers:
+            if st.session_state.answers[question_id] == data["correct_answer"]:
+                score += 1
+    return score, total_questions
 
 # ====================================================================
 # 3. INTERFAZ DE STREAMLIT
 # ====================================================================
 
 st.set_page_config(
-    page_title="Dashboard de Reclutamiento Interactivo",
+    page_title="Dashboard de Práctica: Reclutamiento",
     layout="centered"
 )
 
-st.title("📚 Quiz Interactivo: Proceso de Reclutamiento")
+st.title("📝 Examen de Práctica: Proceso de Reclutamiento")
 st.markdown("---")
 
-if st.session_state.quiz_finished:
+if 'quiz_finished' in st.session_state and st.session_state.quiz_finished:
     # ------------------
     # Resultado Final
     # ------------------
-    total_questions = len(st.session_state.quiz_data)
-    score_percentage = (st.session_state.score / total_questions) * 100
+    score, total_questions = calculate_score()
+    score_percentage = (score / total_questions) * 100
     
-    st.success("🎉 **¡Cuestionario Terminado!** 🎉", icon="🏆")
-    st.header(f"Tu Resultado Final:")
-    st.balloons()
-    
-    col1, col2 = st.columns([1, 1])
-    col1.metric("Respuestas Correctas", f"{st.session_state.score} / {total_questions}")
-    col2.metric("Porcentaje de Acierto", f"{score_percentage:.1f}%")
-
-    if st.button("Reiniciar Quiz"):
-        # Reiniciar el estado de la sesión
-        for key in st.session_state.keys():
-            del st.session_state[key]
-        st.rerun()
-
-else:
-    # ------------------
-    # Pregunta Actual
-    # ------------------
-    
-    current_index = st.session_state.current_question_index
-    question_data = st.session_state.quiz_data[current_index]
-    
-    st.subheader(f"Pregunta {current_index + 1} de {len(st.session_state.quiz_data)}")
-    st.markdown(f"**{question_data['question']}**")
-
-    # Formulario para manejar la respuesta
-    with st.form(key=f"q_form_{current_index}"):
-        # Las opciones del quiz
-        user_choice = st.radio(
-            "Selecciona tu respuesta:",
-            options=question_data["options"],
-            key=f"q_radio_{current_index}"
-        )
-        
-        submit_button = st.form_submit_button("Responder")
-        
-        if submit_button:
-            # Llamar a la función de verificación
-            check_answer(user_choice, question_data["correct_answer"])
-
-    # ------------------
-    # Feedback
-    # ------------------
-    if st.session_state.feedback:
-        if "✅" in st.session_state.feedback:
-            st.success(st.session_state.feedback)
-            # Limpiar el feedback para la siguiente pregunta
-            st.session_state.feedback = ""
-            time.sleep(0.5)
-            st.rerun() # Forzar el avance de la pregunta
-
-        elif "❌" in st.session_state.feedback:
-            st.error(st.session_state.feedback)
-            # Mantener el feedback hasta que se responda correctamente
-
-    st.markdown("---")
-    st.write(f"Puntaje actual: **{st.session_state.score}**")
+    st.success("🎉
